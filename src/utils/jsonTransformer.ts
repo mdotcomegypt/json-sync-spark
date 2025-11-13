@@ -31,15 +31,17 @@ export const transformJson = (
       }
     });
 
-    // Filter items by local market
+    // Filter items by local market (with null checks)
     const filteredItems = allItems.filter((item) => 
-      item.id.startsWith(`${localMarket}-`)
+      item && item.id && typeof item.id === 'string' && item.id.startsWith(`${localMarket}-`)
     );
 
     // Group items by base ID (removing aggregator prefix)
     const groupedItems = new Map<string, ContentItem[]>();
     
     filteredItems.forEach((item) => {
+      if (!item.id) return;
+      
       // Extract base ID by removing the aggregator prefix
       // e.g., "al-al-10gb-whatisnew" -> "10gb-whatisnew"
       const parts = item.id.split('-');
@@ -56,13 +58,21 @@ export const transformJson = (
     // Transform grouped items
     const transformedItems: any[] = [];
     
+    // Extract language codes from aggregators
+    const primaryLang = primaryAggregator.includes('-') 
+      ? primaryAggregator.split('-')[1] 
+      : primaryAggregator;
+    const secondaryLang = secondaryAggregator.includes('-') 
+      ? secondaryAggregator.split('-')[1] 
+      : secondaryAggregator;
+    
     groupedItems.forEach((items, baseId) => {
-      // Find primary and secondary items
+      // Find primary and secondary items (with null checks)
       const primaryItem = items.find((item) => 
-        item.id.startsWith(`${localMarket}-${primaryAggregator.split('-')[1]}-`)
+        item && item.id && item.id.startsWith(`${localMarket}-${primaryLang}-`)
       );
       const secondaryItem = items.find((item) => 
-        item.id.startsWith(`${localMarket}-${secondaryAggregator.split('-')[1]}-`)
+        item && item.id && item.id.startsWith(`${localMarket}-${secondaryLang}-`)
       );
 
       if (primaryItem) {
