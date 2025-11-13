@@ -15,7 +15,8 @@ export const transformJson = (
   sourceJson: string,
   primaryAggregator: string,
   secondaryAggregator: string,
-  localMarket: string
+  localMarket: string,
+  aggregationMethod: 'id' | 'path' = 'id'
 ): string => {
   try {
     const parsed = JSON.parse(sourceJson);
@@ -31,29 +32,59 @@ export const transformJson = (
       }
     });
 
-    // Filter items by local market (with null checks)
-    const filteredItems = allItems.filter((item) => 
-      item && item.id && typeof item.id === 'string' && item.id.startsWith(`${localMarket}-`)
-    );
-
-    // Group items by base ID (removing aggregator prefix)
+    // Filter and group items based on aggregation method
+    let filteredItems: ContentItem[] = [];
     const groupedItems = new Map<string, ContentItem[]>();
-    
-    filteredItems.forEach((item) => {
-      if (!item.id) return;
-      
-      // Extract base ID by removing the aggregator prefix
-      // e.g., "al-al-10gb-whatisnew" -> "10gb-whatisnew"
-      const parts = item.id.split('-');
-      if (parts.length >= 3) {
-        const baseId = parts.slice(2).join('-');
+
+    if (aggregationMethod === 'id') {
+      // Filter items by local market (with null checks)
+      filteredItems = allItems.filter((item) => 
+        item && item.id && typeof item.id === 'string' && item.id.startsWith(`${localMarket}-`)
+      );
+
+      // Group items by base ID (removing aggregator prefix)
+      filteredItems.forEach((item) => {
+        if (!item.id) return;
         
-        if (!groupedItems.has(baseId)) {
-          groupedItems.set(baseId, []);
+        // Extract base ID by removing the aggregator prefix
+        // e.g., "al-al-10gb-whatisnew" -> "10gb-whatisnew"
+        const parts = item.id.split('-');
+        if (parts.length >= 3) {
+          const baseId = parts.slice(2).join('-');
+          
+          if (!groupedItems.has(baseId)) {
+            groupedItems.set(baseId, []);
+          }
+          groupedItems.get(baseId)!.push(item);
         }
-        groupedItems.get(baseId)!.push(item);
-      }
-    });
+      });
+    } else {
+      // Path-based aggregation
+      filteredItems = allItems.filter((item) => 
+        item && item._path && typeof item._path === 'string' && 
+        item._path.includes(`/oneappcms-cf/${localMarket}/`)
+      );
+
+      // Group items by base path (removing language part)
+      filteredItems.forEach((item) => {
+        if (!item._path) return;
+        
+        // Extract base path by removing the language part
+        // e.g., "/content/dam/oneappcms-cf/al/mobile/en/something" -> "mobile/something"
+        const pathParts = item._path.split('/');
+        const marketIndex = pathParts.indexOf(localMarket);
+        
+        if (marketIndex >= 0 && pathParts.length > marketIndex + 2) {
+          // Skip the language code (next item after market) and keep the rest
+          const basePath = pathParts.slice(marketIndex + 2).join('/');
+          
+          if (!groupedItems.has(basePath)) {
+            groupedItems.set(basePath, []);
+          }
+          groupedItems.get(basePath)!.push(item);
+        }
+      });
+    }
 
     // Transform grouped items
     const transformedItems: any[] = [];
@@ -66,14 +97,26 @@ export const transformJson = (
       ? secondaryAggregator.split('-')[1] 
       : secondaryAggregator;
     
-    groupedItems.forEach((items, baseId) => {
+    groupedItems.forEach((items, baseKey) => {
       // Find primary and secondary items (with null checks)
-      const primaryItem = items.find((item) => 
-        item && item.id && item.id.startsWith(`${localMarket}-${primaryLang}-`)
-      );
-      const secondaryItem = items.find((item) => 
-        item && item.id && item.id.startsWith(`${localMarket}-${secondaryLang}-`)
-      );
+      let primaryItem, secondaryItem;
+      
+      if (aggregationMethod === 'id') {
+        primaryItem = items.find((item) => 
+          item && item.id && item.id.startsWith(`${localMarket}-${primaryLang}-`)
+        );
+        secondaryItem = items.find((item) => 
+          item && item.id && item.id.startsWith(`${localMarket}-${secondaryLang}-`)
+        );
+      } else {
+        // Path-based matching
+        primaryItem = items.find((item) => 
+          item && item._path && item._path.includes(`/${localMarket}/mobile/${primaryLang}/`)
+        );
+        secondaryItem = items.find((item) => 
+          item && item._path && item._path.includes(`/${localMarket}/mobile/${secondaryLang}/`)
+        );
+      }
 
       if (primaryItem) {
         const merged: any = { ...primaryItem };

@@ -12,7 +12,8 @@ interface JsonInputProps {
     sourceJson: string,
     primaryAggregator: string,
     secondaryAggregator: string,
-    localMarket: string
+    localMarket: string,
+    aggregationMethod: 'id' | 'path'
   ) => void;
 }
 
@@ -21,6 +22,7 @@ const JsonInput = ({ onTransform }: JsonInputProps) => {
   const [primaryAggregator, setPrimaryAggregator] = useState("");
   const [secondaryAggregator, setSecondaryAggregator] = useState("");
   const [localMarket, setLocalMarket] = useState("");
+  const [aggregationMethod, setAggregationMethod] = useState<'id' | 'path'>('id');
   const [error, setError] = useState("");
 
   const handleTransform = () => {
@@ -43,7 +45,7 @@ const JsonInput = ({ onTransform }: JsonInputProps) => {
 
     try {
       JSON.parse(sourceJson);
-      onTransform(sourceJson, primaryAggregator, secondaryAggregator, localMarket);
+      onTransform(sourceJson, primaryAggregator, secondaryAggregator, localMarket, aggregationMethod);
     } catch (e) {
       setError("Invalid JSON format");
     }
@@ -88,6 +90,36 @@ const JsonInput = ({ onTransform }: JsonInputProps) => {
                   className="font-mono text-sm"
                 />
               </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Aggregation Method
+            </label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="aggregationMethod"
+                  value="id"
+                  checked={aggregationMethod === 'id'}
+                  onChange={(e) => setAggregationMethod(e.target.value as 'id' | 'path')}
+                  className="w-4 h-4 text-primary"
+                />
+                <span className="text-sm">By ID</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="aggregationMethod"
+                  value="path"
+                  checked={aggregationMethod === 'path'}
+                  onChange={(e) => setAggregationMethod(e.target.value as 'id' | 'path')}
+                  className="w-4 h-4 text-primary"
+                />
+                <span className="text-sm">By Path</span>
+              </label>
             </div>
           </div>
 
