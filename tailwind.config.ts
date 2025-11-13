@@ -57,6 +57,16 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        code: {
+          bg: "hsl(var(--code-bg))",
+          foreground: "hsl(var(--code-foreground))",
+        },
+      },
+      backgroundImage: {
+        "gradient-hero": "var(--gradient-hero)",
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
       },
       borderRadius: {
         lg: "var(--radius)",
