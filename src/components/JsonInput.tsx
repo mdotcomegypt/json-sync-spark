@@ -13,12 +13,14 @@ interface JsonInputProps {
     primaryAggregator: string,
     secondaryAggregator: string,
     localMarket: string,
-    aggregationMethod: 'id' | 'path'
+    aggregationMethod: 'id' | 'path',
+    aggregationProperty: string
   ) => void;
 }
 
 const JsonInput = ({ onTransform }: JsonInputProps) => {
   const [sourceJson, setSourceJson] = useState("");
+  const [aggregationProperty, setAggregationProperty] = useState("id");
   const [primaryAggregator, setPrimaryAggregator] = useState("");
   const [secondaryAggregator, setSecondaryAggregator] = useState("");
   const [localMarket, setLocalMarket] = useState("");
@@ -43,9 +45,14 @@ const JsonInput = ({ onTransform }: JsonInputProps) => {
       return;
     }
 
+    if (!aggregationProperty.trim()) {
+      setError("Please enter aggregation property name");
+      return;
+    }
+
     try {
       JSON.parse(sourceJson);
-      onTransform(sourceJson, primaryAggregator, secondaryAggregator, localMarket, aggregationMethod);
+      onTransform(sourceJson, primaryAggregator, secondaryAggregator, localMarket, aggregationMethod, aggregationProperty);
     } catch (e) {
       setError("Invalid JSON format");
     }
@@ -71,6 +78,19 @@ const JsonInput = ({ onTransform }: JsonInputProps) => {
         </div>
 
         <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="aggregationProperty" className="text-sm font-medium">
+              Aggregation Property
+            </Label>
+            <Input
+              id="aggregationProperty"
+              placeholder="e.g., id, buttonID"
+              value={aggregationProperty}
+              onChange={(e) => setAggregationProperty(e.target.value)}
+              className="font-mono text-sm"
+            />
+          </div>
+
           <div className="space-y-2">
             <Label className="text-sm font-medium">Translation Aggregator</Label>
             <div className="grid grid-cols-2 gap-3">

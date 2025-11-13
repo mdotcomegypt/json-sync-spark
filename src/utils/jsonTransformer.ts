@@ -16,7 +16,8 @@ export const transformJson = (
   primaryAggregator: string,
   secondaryAggregator: string,
   localMarket: string,
-  aggregationMethod: 'id' | 'path' = 'id'
+  aggregationMethod: 'id' | 'path' = 'id',
+  aggregationProperty: string = 'id'
 ): string => {
   try {
     const parsed = JSON.parse(sourceJson);
@@ -39,16 +40,18 @@ export const transformJson = (
     if (aggregationMethod === 'id') {
       // Filter items by local market (with null checks)
       filteredItems = allItems.filter((item) => 
-        item && item.id && typeof item.id === 'string' && item.id.startsWith(`${localMarket}-`)
+        item && item[aggregationProperty] && typeof item[aggregationProperty] === 'string' && 
+        item[aggregationProperty].startsWith(`${localMarket}-`)
       );
 
       // Group items by base ID (removing aggregator prefix)
       filteredItems.forEach((item) => {
-        if (!item.id) return;
+        const propValue = item[aggregationProperty];
+        if (!propValue) return;
         
         // Extract base ID by removing the aggregator prefix
         // e.g., "al-al-10gb-whatisnew" -> "10gb-whatisnew"
-        const parts = item.id.split('-');
+        const parts = propValue.split('-');
         if (parts.length >= 3) {
           const baseId = parts.slice(2).join('-');
           
@@ -103,10 +106,10 @@ export const transformJson = (
       
       if (aggregationMethod === 'id') {
         primaryItem = items.find((item) => 
-          item && item.id && item.id.startsWith(`${localMarket}-${primaryLang}-`)
+          item && item[aggregationProperty] && item[aggregationProperty].startsWith(`${localMarket}-${primaryLang}-`)
         );
         secondaryItem = items.find((item) => 
-          item && item.id && item.id.startsWith(`${localMarket}-${secondaryLang}-`)
+          item && item[aggregationProperty] && item[aggregationProperty].startsWith(`${localMarket}-${secondaryLang}-`)
         );
       } else {
         // Path-based matching
@@ -124,7 +127,7 @@ export const transformJson = (
         // Add secondary properties
         if (secondaryItem) {
           Object.keys(secondaryItem).forEach((key) => {
-            if (key !== 'id' && key !== '_id' && key !== '_path' && !key.startsWith('_')) {
+            if (key !== aggregationProperty && key !== '_id' && key !== '_path' && !key.startsWith('_')) {
               const secondaryKey = `${key}_secondary`;
               merged[secondaryKey] = secondaryItem[key];
             }

@@ -14,7 +14,8 @@ const Index = () => {
     primaryAggregator: string,
     secondaryAggregator: string,
     localMarket: string,
-    aggregationMethod: 'id' | 'path'
+    aggregationMethod: 'id' | 'path',
+    aggregationProperty: string
   ) => {
     try {
       const transformed = transformJson(
@@ -22,7 +23,8 @@ const Index = () => {
         primaryAggregator,
         secondaryAggregator,
         localMarket,
-        aggregationMethod
+        aggregationMethod,
+        aggregationProperty
       );
       setOutput(transformed);
       toast({
