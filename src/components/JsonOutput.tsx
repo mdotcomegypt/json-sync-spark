@@ -47,6 +47,16 @@ const JsonOutput = ({ output }: JsonOutputProps) => {
     });
   };
 
+  let meta: { mergedCount?: number; notMatchedCount?: number; nonMatchedPaths?: string[] } | null = null;
+  try {
+    if (output) {
+      const parsed = JSON.parse(output);
+      if (parsed && typeof parsed === 'object' && parsed.meta) {
+        meta = parsed.meta;
+      }
+    }
+  } catch {}
+
   return (
     <Card className="h-full flex flex-col shadow-card">
       <CardHeader className="pb-4">
@@ -84,7 +94,29 @@ const JsonOutput = ({ output }: JsonOutputProps) => {
         </div>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col">
-        <div className="flex-1 bg-code-bg text-code-foreground rounded-lg p-4 overflow-auto">
+        {meta && (
+          <div className="mb-3 text-sm flex items-center gap-4">
+            <div className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Merged: <span className="font-semibold">{meta.mergedCount ?? 0}</span>
+            </div>
+            <div className="px-2 py-1 rounded bg-amber-50 text-amber-800 border border-amber-200">
+              Not matched: <span className="font-semibold">{meta.notMatchedCount ?? 0}</span>
+            </div>
+          </div>
+        )}
+        {meta?.nonMatchedPaths && meta.nonMatchedPaths.length > 0 && (
+          <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 text-amber-900">
+            <div className="px-3 py-2 text-sm font-medium">Did not meet criteria</div>
+            <div className="px-3 pb-2 max-h-40 overflow-auto">
+              <ul className="list-disc pl-5 text-xs">
+                {meta.nonMatchedPaths.map((p, i) => (
+                  <li key={`${p}-${i}`} className="truncate" title={p}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+        <div className="flex-1 bg-code-bg text-code-foreground rounded-lg p-4 overflow-auto max-h-[1000px]">
           {output ? (
             <pre className="font-mono text-sm whitespace-pre-wrap break-words">
               {output}
