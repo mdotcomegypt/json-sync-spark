@@ -4,6 +4,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { savedSchemas } from "@/config/migrationSchemas";
 
 interface SchemaInputProps {
   value: string;
@@ -12,6 +14,7 @@ interface SchemaInputProps {
 
 const SchemaInput = ({ value, onChange }: SchemaInputProps) => {
   const [error, setError] = useState("");
+  const [selectedSchemaKey, setSelectedSchemaKey] = useState<string>("");
 
   useEffect(() => {
     if (!value.trim()) {
@@ -32,6 +35,31 @@ const SchemaInput = ({ value, onChange }: SchemaInputProps) => {
         <CardTitle className="text-xl font-semibold">Migration Schema</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col gap-4">
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Saved Schemas</Label>
+          <Select
+            value={selectedSchemaKey}
+            onValueChange={(key) => {
+              setSelectedSchemaKey(key);
+              const found = savedSchemas.find((s) => s.key === key);
+              if (found) {
+                onChange(found.json);
+              }
+            }}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Choose a saved schema or paste your own" />
+            </SelectTrigger>
+            <SelectContent>
+              {savedSchemas.map((schema) => (
+                <SelectItem key={schema.key} value={schema.key}>
+                  {schema.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="schemaJson" className="text-sm font-medium">
             Schema JSON
