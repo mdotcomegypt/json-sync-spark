@@ -91,13 +91,6 @@ const MigrationCards = ({ output, schemaJson, locales }: MigrationCardsProps) =>
     if (typeof it._id_secondary === "string" && it._id_secondary.trim().length > 0) {
       return it._id_secondary.trim();
     }
-    // Look for top-level *_secondary objects with an _id
-    for (const [k, v] of Object.entries(it)) {
-      if (k.endsWith("_secondary") && v && typeof v === "object") {
-        const sid = (v as any)?._id;
-        if (typeof sid === "string" && sid.trim().length > 0) return sid.trim();
-      }
-    }
     return null;
   };
 
@@ -161,7 +154,7 @@ const MigrationCards = ({ output, schemaJson, locales }: MigrationCardsProps) =>
           refs.forEach((d) => allRefIds.add(d.id));
         });
 
-        // Check referenced ids
+        // Check referenced ids (consider both primary and secondary columns)
         const refIds = Array.from(allRefIds);
         let rowsRefs: any[] = [];
         if (refIds.length) {
@@ -169,7 +162,9 @@ const MigrationCards = ({ output, schemaJson, locales }: MigrationCardsProps) =>
         }
         const migratedRefSet = new Set<string>();
         refIds.forEach((rid) => {
-          const related = rowsRefs.filter((r) => r.source_id === rid);
+          const related = rowsRefs.filter(
+            (r) => r.source_id === rid || r.source_id_secondary === rid
+          );
           if (isMigrated(related)) migratedRefSet.add(rid);
         });
 

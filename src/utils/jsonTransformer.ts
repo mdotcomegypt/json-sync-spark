@@ -157,6 +157,11 @@ export const transformJson = (
 
       if (primaryItem && secondaryItem) {
         const merged: any = { ...primaryItem };
+
+        // Preserve secondary content id for downstream logging (e.g. migration mapping)
+        if (secondaryItem._id && typeof secondaryItem._id === "string") {
+          merged._id_secondary = secondaryItem._id;
+        }
         
         // Add secondary properties
         Object.keys(secondaryItem).forEach((key) => {
