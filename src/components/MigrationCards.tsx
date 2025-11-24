@@ -26,7 +26,7 @@ const MigrationCards = ({ output, schemaJson, locales }: MigrationCardsProps) =>
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<string>("");
   const [migratedMap, setMigratedMap] = useState<Record<string, boolean>>({});
-  type DepDetail = { id: string; type?: string | null };
+  type DepDetail = { id: string; type?: string | null; path?: string | null };
   const [depsMap, setDepsMap] = useState<Record<string, DepDetail[]>>({});
 
   const marketUpper = useMemo(() => {
@@ -111,11 +111,12 @@ const MigrationCards = ({ output, schemaJson, locales }: MigrationCardsProps) =>
       if (idStr && idStr.length >= 8) {
         if (!rootId || idStr !== rootId) {
           const type = (node as any)?._model?.title ?? parentKey ?? null;
+          const path = (node as any)?._path ?? null;
           const nodeType = (node as any)?.type;
           const isImage = (typeof nodeType === "string" && nodeType.toLowerCase() === "image") ||
             (typeof type === "string" && type.toLowerCase() === "image");
           if (!isImage) {
-            if (!result.has(idStr)) result.set(idStr, { id: idStr, type });
+            if (!result.has(idStr)) result.set(idStr, { id: idStr, type, path });
           }
         }
       }
@@ -207,10 +208,10 @@ const MigrationCards = ({ output, schemaJson, locales }: MigrationCardsProps) =>
       });
       startedId = started.id;
 
-      await sendToContentful({ schemaJson, item, locales, marketCodeUpper: marketUpper });
+      const entryId = await sendToContentful({ schemaJson, item, locales, marketCodeUpper: marketUpper });
 
-      // Success log
-      await markMigrationSuccess(started.id, { targetId: sourceId });
+      // Success log (store real Contentful entry id as targetId)
+      await markMigrationSuccess(started.id, { targetId: entryId });
 
       // refresh badge for this item
       setMigratedMap((prev) => ({ ...prev, [sourceId]: true }));
@@ -234,9 +235,9 @@ const MigrationCards = ({ output, schemaJson, locales }: MigrationCardsProps) =>
     }
   };
 
-  const handlePreview = (item: any) => {
+  const handlePreview = async (item: any) => {
     try {
-      const payload = buildContentfulPayload(schemaJson, item, locales, marketUpper);
+      const payload = await buildContentfulPayload(schemaJson, item, locales, marketUpper);
       setPreview(JSON.stringify(payload, null, 2));
       setOpen(true);
     } catch (err) {
@@ -335,6 +336,11 @@ const MigrationCards = ({ output, schemaJson, locales }: MigrationCardsProps) =>
                             <Alert key={`${key}-${d.id}`} className="border-amber-300 text-amber-800 bg-amber-50">
                               <AlertDescription className="text-xs">
                                 {d.type ? `${d.type}` : "Reference"}: {d.id}
+                                {d.path ? (
+                                  <div className="mt-0.5 text-[10px] text-amber-900/80 break-all">
+                                    {d.path}
+                                  </div>
+                                ) : null}
                               </AlertDescription>
                             </Alert>
                           ))}

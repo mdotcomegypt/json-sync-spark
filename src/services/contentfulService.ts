@@ -1,4 +1,5 @@
 import { createClient } from "contentful-management";
+import { findMigrationsBySourceIds, isMigrated } from "@/services/migrationMappingService";
 
 export interface SendOptions {
   schemaJson: string;
@@ -7,10 +8,15 @@ export interface SendOptions {
   marketCodeUpper?: string;
 }
 
+// In schema JSON, fields are defined as ContentfulFieldId: AemSource (destination:source)
+// Simple example:
+//   "fields": { "title": "friendlyName" }
+// Media example:
+//   "fields": { "icon": { "from": "icon", "composeMedia": { ... } } }
 type FieldDescriptor =
-  | string
+  | string // AEM source field name, e.g. "friendlyName"
   | {
-      to?: string; // target field id; if omitted, use the key name
+      from?: string; // AEM source field name; defaults to the Contentful field id key
       composeMedia?: {
         metaField: string; // e.g., "contentUrl"
         pathField: string; // e.g., "contentUrl_dm"
@@ -21,23 +27,37 @@ type FieldDescriptor =
 type Schema = {
   aemModel: string;
   contentfulType: string;
-  fields: Record<string, FieldDescriptor>; // supports simple or composed mapping
+  // Keys are Contentful field ids; values describe the AEM source.
+  // The source can be a simple field name (e.g. "friendlyName") or a dotted path
+  // into the object (e.g. "configuration.label").
+  fields: Record<string, FieldDescriptor>;
   ignored?: string[];
 };
+
+function getByPath(root: any, pathParts: string[]): any {
+  return pathParts.reduce((acc, key) => {
+    if (acc == null) return undefined;
+    return (acc as any)[key];
+  }, root as any);
+}
 
 function buildFields(schema: Schema, item: any, primaryLocale: string, secondaryLocale: string) {
   const result: Record<string, Record<string, any>> = {};
 
   const ignored = new Set(schema.ignored || []);
 
-  Object.entries(schema.fields).forEach(([key, descriptor]) => {
-    if (ignored.has(key)) return;
+  Object.entries(schema.fields).forEach(([cfFieldId, descriptor]) => {
+    // Determine AEM source (can be a simple field name or a dotted path like "configuration.label")
+    const rawSource = typeof descriptor === "string" ? descriptor : (descriptor.from || cfFieldId);
+    const [rootField, ...pathParts] = rawSource.split(".");
+    if (ignored.has(rootField)) return;
 
-    // Simple: key (aem) -> value (contentful field id)
+    // Simple: Contentful field id -> AEM source field name
     if (typeof descriptor === "string") {
-      const cfFieldId = descriptor;
-      const primaryValue = item?.[key];
-      const secondaryValue = item?.[`${key}_secondary`];
+      const primaryRoot = item?.[rootField];
+      const secondaryRoot = item?.[`${rootField}_secondary`];
+      const primaryValue = pathParts.length ? getByPath(primaryRoot, pathParts) : primaryRoot;
+      const secondaryValue = pathParts.length ? getByPath(secondaryRoot, pathParts) : secondaryRoot;
       if (primaryValue === undefined && secondaryValue === undefined) return;
       result[cfFieldId] = {} as any;
       if (primaryValue !== undefined && primaryValue !== null) {
@@ -50,9 +70,6 @@ function buildFields(schema: Schema, item: any, primaryLocale: string, secondary
     }
 
     // Descriptor with composeMedia
-    const toField: string = (typeof descriptor.to === 'string' && descriptor.to.length)
-      ? descriptor.to
-      : key;
     if (descriptor.composeMedia) {
       const { metaField, pathField, whenType } = descriptor.composeMedia;
 
@@ -149,12 +166,12 @@ function buildFields(schema: Schema, item: any, primaryLocale: string, secondary
       );
 
       if (primaryComposed === undefined && secondaryComposed === undefined) return;
-      result[toField] = {} as any;
+      result[cfFieldId] = {} as any;
       if (primaryComposed !== undefined) {
-        result[toField][primaryLocale] = primaryComposed;
+        result[cfFieldId][primaryLocale] = primaryComposed;
       }
       if (secondaryComposed !== undefined) {
-        result[toField][secondaryLocale] = secondaryComposed;
+        result[cfFieldId][secondaryLocale] = secondaryComposed;
       }
       return;
     }
@@ -165,7 +182,69 @@ function buildFields(schema: Schema, item: any, primaryLocale: string, secondary
   return result;
 }
 
-export async function sendToContentful({ schemaJson, item, locales, marketCodeUpper }: SendOptions): Promise<void> {
+// Resolve reference fields (currently handles whatIsNewSection.items) to real
+// Contentful entry links using the migration mapping table.
+async function resolveReferenceFields(
+  schema: Schema,
+  item: any,
+  fields: Record<string, Record<string, any>>
+): Promise<Record<string, Record<string, any>>> {
+  // Only handle schemas that have an "items" field defined
+  if (!schema.fields.items) return fields;
+
+  const descriptor = schema.fields.items as FieldDescriptor;
+  const sourceField = typeof descriptor === "string" ? descriptor : (descriptor.from || "items");
+  const list = item?.[sourceField];
+  if (!Array.isArray(list)) return fields;
+
+  const sourceIds = list
+    .map((e: any) => (e && (e._id || e.id)) as string | undefined)
+    .filter((v): v is string => typeof v === "string" && v.trim().length > 0);
+
+  if (!sourceIds.length) return fields;
+
+  const rows = await findMigrationsBySourceIds("aem", sourceIds);
+
+  const resolved = new Map<string, string>();
+  sourceIds.forEach((sid) => {
+    const related = rows.filter(
+      (r) => r.source_id === sid || r.source_id_secondary === sid
+    );
+    if (isMigrated(related)) {
+      const latest = related[0];
+      if (latest?.target_id) {
+        resolved.set(sid, latest.target_id);
+      }
+    }
+  });
+
+  const buildLinks = () =>
+    list
+      .map((e: any) => {
+        const sid = (e && (e._id || e.id)) as string | undefined;
+        if (!sid) return null;
+        const tid = resolved.get(sid);
+        if (!tid) return null;
+        return {
+          sys: {
+            id: tid,
+            linkType: "Entry" as const,
+            type: "Link" as const,
+          },
+        };
+      })
+      .filter((v) => v !== null);
+
+  if (fields.items) {
+    Object.keys(fields.items).forEach((locale) => {
+      fields.items[locale] = buildLinks();
+    });
+  }
+
+  return fields;
+}
+
+export async function sendToContentful({ schemaJson, item, locales, marketCodeUpper }: SendOptions): Promise<string> {
   let schema: Schema;
   try {
     schema = JSON.parse(schemaJson || "{}");
@@ -187,13 +266,20 @@ export async function sendToContentful({ schemaJson, item, locales, marketCodeUp
     throw new Error("Missing Contentful env vars (VITE_CONTENTFUL_SPACE_ID, VITE_CONTENTFUL_CMA_TOKEN)");
   }
 
-  const fields = buildFields(schema, item, primaryLocale, secondaryLocale);
+  let fields = buildFields(schema, item, primaryLocale, secondaryLocale);
+
+  // Post-process reference lists like items -> Entry[] links using migration mapping
+  fields = await resolveReferenceFields(schema, item, fields);
 
   // Derive entryId from item.id, or from fields.id when it's a string descriptor
   let entryIdSource: any = item?.id;
   const idFieldDesc = (schema.fields as any)?.id as FieldDescriptor | undefined;
-  if (!entryIdSource && typeof idFieldDesc === 'string') {
-    entryIdSource = item?.[idFieldDesc];
+  if (!entryIdSource) {
+    if (typeof idFieldDesc === 'string') {
+      entryIdSource = item?.[idFieldDesc];
+    } else if (idFieldDesc && typeof idFieldDesc === 'object' && typeof idFieldDesc.from === 'string') {
+      entryIdSource = item?.[idFieldDesc.from];
+    }
   }
   const entryId = String(entryIdSource || "").trim();
   if (!entryId) {
@@ -250,9 +336,12 @@ export async function sendToContentful({ schemaJson, item, locales, marketCodeUp
   }
 
   await entry.publish();
+
+  // Return the Contentful entry id so callers can persist it (e.g., in migration_mapping.target_id)
+  return entryId;
 }
 
-export function buildContentfulPayload(
+export async function buildContentfulPayload(
   schemaJson: string,
   item: any,
   locales?: { primary: string; secondary: string },
@@ -272,7 +361,10 @@ export function buildContentfulPayload(
   const primaryLocale = locales?.primary || (import.meta.env.VITE_CONTENTFUL_PRIMARY_LOCALE as string | undefined) || "en-US";
   const secondaryLocale = locales?.secondary || (import.meta.env.VITE_CONTENTFUL_SECONDARY_LOCALE as string | undefined) || "en-GB";
 
-  const fields = buildFields(schema, item, primaryLocale, secondaryLocale);
+  let fields = buildFields(schema, item, primaryLocale, secondaryLocale);
+
+  // Keep preview consistent with actual send by resolving reference lists
+  fields = await resolveReferenceFields(schema, item, fields);
   let entryIdSource: any = item?.id;
   const idFieldDesc = (schema.fields as any)?.id as FieldDescriptor | undefined;
   if (!entryIdSource && typeof idFieldDesc === 'string') {

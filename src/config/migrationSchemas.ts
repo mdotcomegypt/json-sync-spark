@@ -27,51 +27,7 @@ export const savedSchemas: SavedSchema[] = [
     "_model",
     "_tags"
   ],
-  "contentfulDefinition": {
-    "name": "Microcopy",
-    "description": "",
-    "displayField": "id",
-    "fields": [
-      {
-        "id": "id",
-        "name": "ID",
-        "type": "Symbol",
-        "localized": false,
-        "required": true,
-        "validations": [
-          { "unique": true }
-        ]
-      },
-      {
-        "id": "labels",
-        "name": "Labels",
-        "type": "Object",
-        "localized": true,
-        "required": false
-      },
-      {
-        "id": "descriptions",
-        "name": "Descriptions",
-        "type": "Object",
-        "localized": true,
-        "required": false
-      },
-      {
-        "id": "headings",
-        "name": "Headings",
-        "type": "Object",
-        "localized": true,
-        "required": false
-      },
-      {
-        "id": "buttonLabels",
-        "name": "Button Labels",
-        "type": "Object",
-        "localized": true,
-        "required": false
-      }
-    ]
-  }
+
 }`,
   },
   {
@@ -84,15 +40,15 @@ export const savedSchemas: SavedSchema[] = [
     "id": "id",
     "ariaLabel": "ariaLabel",
     "icon": {
-      "to": "icon",
+      "from": "icon",
       "composeMedia": {
         "metaField": "icon",
         "pathField": "icon_dm",
         "whenType": "image"
       }
     },
-    "aurora_icon": {
-      "to": "auroraIcon",
+    "auroraIcon": {
+      "from": "aurora_icon",
       "composeMedia": {
         "metaField": "aurora_icon",
         "pathField": "aurora_icon_dm",
@@ -101,10 +57,7 @@ export const savedSchemas: SavedSchema[] = [
     },
     "altText": "altText",
     "title": "title",
-    "lottieFile": {
-      "to": "lottieFile",
-      "composeObject": true
-    }
+    "lottieFile": "lottieFile"
   },
   "ignored": [
     "_path",
@@ -182,10 +135,10 @@ export const savedSchemas: SavedSchema[] = [
   "contentfulType": "whatIsNewSection",
   "fields": {
     "id": "id",
-    "friendlyName": "title",
-    "productTypes": "forLabel",
+    "title": "friendlyName",
+    "forLabel": "productTypes",
     "configuration": "configuration",
-    "whatisnewList": "items"
+    "items": "whatisnewList"
   }
 }`,
   },
@@ -193,37 +146,18 @@ export const savedSchemas: SavedSchema[] = [
     key: "whatIsNewItem",
     label: "whatIsNew > whatIsNewItem",
     json: `{
-  "aemModel": "whatIsNew",
-  "contentfulType": "whatIsNewItem",
+  "aemModel": "whatsnew ",
+  "contentfulType": "whatIsNewSection",
   "fields": {
+"editorialId": "id",
     "id": "id",
-    "title": "title",
-    "description": "description",
-    "backgroundImage": {
-      "to": "backgroundImage",
-      "composeMedia": {
-        "metaField": "contentUrl",
-        "pathField": "contentUrl_dm",
-        "whenType": "image"
-      }
-    },
-    "ctaLabel": "ctaLabel",
-    "ctaURL": "ctaUrl",
-    "campaignData": "campaignData"
-  },
-  "ignored": [
-    "_path",
-    "_id",
-    "_variation",
-    "_metadata",
-    "_model",
-    "_variations",
-    "_tags",
-    "aurora_contentUrl",
-    "contentUrl_dm",
-    "aurora_contentUrl_dm",
-    "tags"
-  ]
+    "title": "configuration.sectionTitle",
+"seeAllLabel": "configuration.sectionSeeAll",
+"allLabel": "configuration.all",
+"forLabel": "configuration.for",
+    "configuration": "configuration",
+    "items": "whatisnewList"
+  }
 }`,
   },
 ];
