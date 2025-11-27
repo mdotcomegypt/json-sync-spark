@@ -234,11 +234,16 @@ export interface ListFilter {
   targetSystem?: string;
   from?: string; // ISO
   to?: string; // ISO
+  search?: string;
 }
 
 export async function listMigrations(filter: ListFilter = {}, limit = 50, offset = 0) {
   const supabase = getSupabaseClient();
-  let query = supabase.from("migration_mapping").select("*", { count: "exact" }).order("started_at", { ascending: false }).range(offset, offset + Math.max(0, limit - 1));
+  let query = supabase
+    .from("migration_mapping")
+    .select("*", { count: "exact" })
+    .order("updated_at", { ascending: false })
+    .range(offset, offset + Math.max(0, limit - 1));
 
   if (filter.status) query = query.eq("status", filter.status);
   if (filter.entityType) query = query.eq("entity_type", filter.entityType);
@@ -247,6 +252,20 @@ export async function listMigrations(filter: ListFilter = {}, limit = 50, offset
   if (filter.targetSystem) query = query.eq("target_system", filter.targetSystem);
   if (filter.from) query = query.gte("started_at", filter.from);
   if (filter.to) query = query.lte("started_at", filter.to);
+  if (filter.search && filter.search.trim()) {
+    const term = `%${filter.search.trim()}%`;
+    query = query.or(
+      [
+        `source_id.ilike.${term}`,
+        `source_id_secondary.ilike.${term}`,
+        `target_id.ilike.${term}`,
+        `entity_type.ilike.${term}`,
+        `operation.ilike.${term}`,
+        `status.ilike.${term}`,
+        `trace_id.ilike.${term}`,
+      ].join(","),
+    );
+  }
 
   const { data, error, count } = await query;
   if (error) throw error;
